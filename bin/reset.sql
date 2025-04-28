@@ -7,6 +7,7 @@ BEGIN
   EXECUTE IMMEDIATE 'DROP TABLE Ingredient CASCADE CONSTRAINTS';
   EXECUTE IMMEDIATE 'DROP TABLE Auteur CASCADE CONSTRAINTS';
   EXECUTE IMMEDIATE 'DROP TABLE Trace CASCADE CONSTRAINTS';
+  EXECUTE IMMEDIATE 'DROP SEQUENCE seq_tracking_number';
 EXCEPTION
   WHEN OTHERS THEN
     NULL;
@@ -70,8 +71,15 @@ CREATE TABLE Trace (
   operation_type VARCHAR2(10) NOT NULL,
   operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   record_id NUMBER,
-  record_id2 NUMBER
+  record_id2 NUMBER,
+  tracking_number NUMBER
 );
+-- Création d'une séquence pour numéros de suivi des transactions
+CREATE SEQUENCE seq_tracking_number
+  START WITH 1
+  INCREMENT BY 1
+  NOCACHE
+  NOCYCLE;
 
  
 -- IMPLÉMENTATION DU JOURNAL DE TRACE
@@ -82,12 +90,15 @@ CREATE OR REPLACE PROCEDURE log_transaction(
   p_table_name IN VARCHAR2,
   p_operation_type IN VARCHAR2,
   p_record_id IN NUMBER,
-  p_record_id2 IN NUMBER DEFAULT NULL -- valeur par défaut NULL pour les tables normales
+  p_record_id2 IN NUMBER DEFAULT NULL
 )
 AS
+  v_tracking_number NUMBER;
 BEGIN
-  INSERT INTO Trace (table_name, operation_type, record_id, record_id2)
-  VALUES (p_table_name, p_operation_type, p_record_id, p_record_id2);
+  SELECT seq_tracking_number.NEXTVAL INTO v_tracking_number FROM DUAL;
+  
+  INSERT INTO Trace (table_name, operation_type, record_id, record_id2, tracking_number)
+  VALUES (p_table_name, p_operation_type, p_record_id, p_record_id2, v_tracking_number);
 END;
 /
 

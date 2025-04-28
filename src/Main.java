@@ -121,7 +121,8 @@ public class Main {
             System.out.println("9. Voir les recettes par temps de préparation"); 
             System.out.println("10. Voir les ingrédients d'une recette"); 
             System.out.println("11. Afficher la cote santé d'une recette"); 
-            System.out.println("12. Quitter");
+            System.out.println("12. Consulter le journal d'activité");
+            System.out.println("13. Quitter");
             System.out.print("Votre choix : ");
             choix = sc.nextInt();
             sc.nextLine();
@@ -161,13 +162,16 @@ public class Main {
                     afficherCoteSanteRecette(sc);
                     break;
                 case 12:
+                    afficherJournalActivite();
+                    break;
+                case 13:
                     System.out.println("Au revoir !");
                     break;
                 default:
                     System.out.println("Choix invalide !");
             }
             
-        } while (choix != 12);
+        } while (choix != 13);
 
         sc.close();
         DatabaseConnection.closeConnection();
@@ -1043,6 +1047,58 @@ private static void afficherCoteSanteRecette(Scanner sc) {
         try {
             if (rsRecettes != null) rsRecettes.close();
             if (stmtRecettes != null) stmtRecettes.close();
+        } catch (SQLException e) {
+            System.out.println("Erreur lors de la fermeture des ressources : " + e.getMessage());
+        }
+    }
+}
+
+/**
+ * Affiche le journal d'activité avec les numéros de suivi générés par la séquence.
+ */
+private static void afficherJournalActivite() {
+    Statement stmt = null;
+    ResultSet rs = null;
+    try {
+        Connection conn = DatabaseConnection.getConnection();
+        stmt = conn.createStatement();
+        rs = stmt.executeQuery(
+            "SELECT id_trace, table_name, operation_type, operation_date, " +
+            "record_id, record_id2, tracking_number " +
+            "FROM Trace ORDER BY operation_date DESC");
+        
+        boolean found = false;
+        System.out.println("\nJournal d'activité :");
+        System.out.println("------------------");
+        
+        while (rs.next()) {
+            found = true;
+            int id = rs.getInt("id_trace");
+            String table = rs.getString("table_name");
+            String operation = rs.getString("operation_type");
+            Timestamp date = rs.getTimestamp("operation_date");
+            int recordId = rs.getInt("record_id");
+            int recordId2 = rs.getInt("record_id2");
+            int trackingNumber = rs.getInt("tracking_number");
+            
+            System.out.println("Suivi #" + trackingNumber + " - " + date);
+            System.out.println("  Opération: " + operation + " sur " + table);
+            System.out.println("  Enregistrement: " + recordId + 
+                (recordId2 > 0 ? ", " + recordId2 : ""));
+            System.out.println();
+        }
+        
+        if (!found) {
+            System.out.println("Aucune activité enregistrée.");
+        }
+        
+        System.out.println("------------------");
+    } catch (SQLException e) {
+        System.out.println("Erreur lors de l'affichage du journal : " + e.getMessage());
+    } finally {
+        try {
+            if (rs != null) rs.close();
+            if (stmt != null) stmt.close();
         } catch (SQLException e) {
             System.out.println("Erreur lors de la fermeture des ressources : " + e.getMessage());
         }
