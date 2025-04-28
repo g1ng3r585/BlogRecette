@@ -512,6 +512,7 @@ public class Main {
 
     /**
      * Affiche la liste de toutes les recettes avec leurs ingrédients.
+     * Version optimisée qui utilise une seule requête au lieu de N+1 requêtes.
      */
     private static void afficherRecettes() {
         Statement stmt = null;
@@ -520,29 +521,52 @@ public class Main {
             Connection conn = DatabaseConnection.getConnection();
             stmt = conn.createStatement();
             rs = stmt.executeQuery(
-                "SELECT r.id_recette, r.titre, r.description, r.temps_preparation, r.temps_cuisson, a.nom as auteur_nom " +
+                "SELECT r.id_recette, r.titre, r.description, r.temps_preparation, r.temps_cuisson, " +
+                "a.nom as auteur_nom, i.nom as ingredient_nom, ri.quantite " +
                 "FROM Recette r " +
-                "JOIN Auteur a ON r.auteur_id = a.id_auteur");
+                "JOIN Auteur a ON r.auteur_id = a.id_auteur " +
+                "LEFT JOIN Recette_Ingredient ri ON r.id_recette = ri.id_recette " +
+                "LEFT JOIN Ingredient i ON ri.id_ingredient = i.id_ingredient " +
+                "ORDER BY r.id_recette, i.nom");
             
             boolean found = false;
+            int currentRecetteId = -1;
             System.out.println("\nListe des recettes :");
+            
             while (rs.next()) {
                 found = true;
                 int id = rs.getInt("id_recette");
-                String titre = rs.getString("titre");
-                String description = rs.getString("description");
-                int temps_prep = rs.getInt("temps_preparation");
-                int temps_cuisson = rs.getInt("temps_cuisson");
-                String auteur = rs.getString("auteur_nom");
                 
-                System.out.println("ID: " + id + " - " + titre);
-                System.out.println("  Par: " + auteur);
-                System.out.println("  Description: " + description);
-                System.out.println("  Temps de préparation: " + temps_prep + " min, Temps de cuisson: " + temps_cuisson + " min");
+                // Si on commence une nouvelle recette
+                if (id != currentRecetteId) {
+                    if (currentRecetteId != -1) {
+                        System.out.println();
+                    }
+                    
+                    // Informations de la recette
+                    currentRecetteId = id;
+                    String titre = rs.getString("titre");
+                    String description = rs.getString("description");
+                    int temps_prep = rs.getInt("temps_preparation");
+                    int temps_cuisson = rs.getInt("temps_cuisson");
+                    String auteur = rs.getString("auteur_nom");
+                    
+                    System.out.println("ID: " + id + " - " + titre);
+                    System.out.println("  Par: " + auteur);
+                    System.out.println("  Description: " + description);
+                    System.out.println("  Temps de préparation: " + temps_prep + " min, Temps de cuisson: " + temps_cuisson + " min");
+                    System.out.println("  Ingrédients:");
+                }
                 
-                afficherIngredientsRecette(id);
-                
-                System.out.println();
+                // Afficher l'ingrédient (utilisez LEFT JOIN donc peut être NULL)
+                String ingredient = rs.getString("ingredient_nom");
+                String quantite = rs.getString("quantite");
+                if (ingredient != null) {
+                    System.out.println("    - " + quantite + " de " + ingredient);
+                } else if (currentRecetteId == id) {
+                    // Si c'est une nouvelle recette et qu'il n'y a pas d'ingrédient
+                    System.out.println("    Aucun ingrédient enregistré pour cette recette.");
+                }
             }
             
             if (!found) {
