@@ -191,3 +191,29 @@ INSERT INTO Recette_Ingredient VALUES (3, 3, '1 tasse d’épinards');
 INSERT INTO Recette_Ingredient VALUES (3, 5, '200g de pâtes');
 INSERT INTO Recette_Ingredient VALUES (4, 1, '3 œufs');
 INSERT INTO Recette_Ingredient VALUES (4, 6, '1 c. à soupe de beurre');
+
+
+CREATE OR REPLACE VIEW Vue_Recette_Details AS
+SELECT 
+    r.id_recette,
+    r.titre,
+    a.nom AS auteur_nom,
+    (NVL(r.temps_preparation, 0) + NVL(r.temps_cuisson, 0)) AS temps_total
+FROM 
+    Recette r
+JOIN 
+    Auteur a ON r.auteur_id = a.id_auteur;
+
+
+CREATE OR REPLACE VIEW Vue_Ingredients_Recette AS
+SELECT 
+    r.id_recette,
+    r.titre AS recette,
+    i.nom AS ingredient,
+    ri.quantite
+FROM 
+    Recette_Ingredient ri
+JOIN 
+    Recette r ON ri.id_recette = r.id_recette
+JOIN 
+    Ingredient i ON ri.id_ingredient = i.id_ingredient;

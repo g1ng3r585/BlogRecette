@@ -118,7 +118,9 @@ public class Main {
             System.out.println("6. Supprimer un auteur");
             System.out.println("7. Voir les auteurs");
             System.out.println("8. Voir les ingrédients");
-            System.out.println("9. Quitter");
+            System.out.println("9. Voir les recettes par temps de préparation"); // Nouvelle option
+            System.out.println("10. Voir les ingrédients d'une recette"); // Nouvelle option
+            System.out.println("11. Quitter"); // Modifié le numéro
             System.out.print("Votre choix : ");
             choix = sc.nextInt();
             sc.nextLine();
@@ -149,13 +151,19 @@ public class Main {
                     afficherIngredients();
                     break;
                 case 9:
+                    afficherRecettesParTemps();
+                    break;
+                case 10:
+                    afficherIngredientsPourRecette(sc);
+                    break;
+                case 11:
                     System.out.println("Au revoir !");
                     break;
                 default:
                     System.out.println("Choix invalide !");
             }
             
-        } while (choix != 9);
+        } while (choix != 11);
 
         sc.close();
         DatabaseConnection.closeConnection();
@@ -829,4 +837,123 @@ public class Main {
             }
         }
     }
+
+ /**
+ * Affiche les recettes triées par temps total de préparation.
+ * Utilise la vue Vue_Recette_Details.
+ */
+private static void afficherRecettesParTemps() {
+    Statement stmt = null;
+    ResultSet rs = null;
+    try {
+        Connection conn = DatabaseConnection.getConnection();
+        stmt = conn.createStatement();
+        rs = stmt.executeQuery("SELECT * FROM Vue_Recette_Details ORDER BY temps_total");
+        
+        boolean found = false;
+        System.out.println("\nRecettes par temps total de préparation :");
+        System.out.println("------------------------------------------");
+        
+        while (rs.next()) {
+            found = true;
+            int id = rs.getInt("id_recette");
+            String titre = rs.getString("titre");
+            String auteur = rs.getString("auteur_nom");
+            int tempsTotal = rs.getInt("temps_total");
+            
+            System.out.println("ID: " + id + " - " + titre);
+            System.out.println("  Par: " + auteur);
+            System.out.println("  Temps total: " + tempsTotal + " minutes");
+            System.out.println();
+        }
+        
+        if (!found) {
+            System.out.println("Aucune recette enregistrée.");
+        }
+        
+        System.out.println("------------------------------------------");
+    } catch (SQLException e) {
+        System.out.println("Erreur lors de l'affichage des recettes : " + e.getMessage());
+    } finally {
+        try {
+            if (rs != null) rs.close();
+            if (stmt != null) stmt.close();
+        } catch (SQLException e) {
+            System.out.println("Erreur lors de la fermeture des ressources : " + e.getMessage());
+        }
+    }
+}
+
+/**
+ * Affiche les ingrédients pour une recette dont l'ID est fourni par l'utilisateur.
+ * Utilise la vue Vue_Ingredients_Recette.
+ * 
+ * @param sc Scanner pour lire les entrées utilisateur
+ */
+private static void afficherIngredientsPourRecette(Scanner sc) {
+    System.out.println("\nRecettes disponibles :");
+    System.out.println("----------------------");
+    
+    Statement stmtRecettes = null;
+    ResultSet rsRecettes = null;
+    try {
+        Connection conn = DatabaseConnection.getConnection();
+        stmtRecettes = conn.createStatement();
+        rsRecettes = stmtRecettes.executeQuery("SELECT id_recette, titre FROM Recette");
+        
+        while (rsRecettes.next()) {
+            int id = rsRecettes.getInt("id_recette");
+            String titre = rsRecettes.getString("titre");
+            System.out.println(id + ". " + titre);
+        }
+        
+        System.out.println("----------------------\n");
+        System.out.print("Entrez l'ID de la recette : ");
+        int idRecette;
+        try {
+            idRecette = Integer.parseInt(sc.nextLine());
+        } catch (NumberFormatException e) {
+            System.out.println("ID invalide. Opération annulée.");
+            return;
+        }
+        
+        PreparedStatement pstmt = null;
+        ResultSet rs = null;
+        try {
+            pstmt = conn.prepareStatement(
+                "SELECT ingredient, quantite FROM Vue_Ingredients_Recette WHERE id_recette = ?");
+            pstmt.setInt(1, idRecette);
+            rs = pstmt.executeQuery();
+            
+            boolean found = false;
+            System.out.println("\nIngrédients pour la recette ID " + idRecette + " :");
+            System.out.println("---------------------------------------------");
+            
+            while (rs.next()) {
+                found = true;
+                String ingredient = rs.getString("ingredient");
+                String quantite = rs.getString("quantite");
+                System.out.println("- " + quantite + " de " + ingredient);
+            }
+            
+            if (!found) {
+                System.out.println("Aucun ingrédient trouvé pour cette recette ou recette inexistante.");
+            }
+            
+            System.out.println("---------------------------------------------");
+        } finally {
+            if (rs != null) rs.close();
+            if (pstmt != null) pstmt.close();
+        }
+    } catch (SQLException e) {
+        System.out.println("Erreur lors de l'affichage des ingrédients : " + e.getMessage());
+    } finally {
+        try {
+            if (rsRecettes != null) rsRecettes.close();
+            if (stmtRecettes != null) stmtRecettes.close();
+        } catch (SQLException e) {
+            System.out.println("Erreur lors de la fermeture des ressources : " + e.getMessage());
+        }
+    }
+}
 }
