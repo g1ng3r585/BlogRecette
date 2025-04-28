@@ -217,3 +217,87 @@ JOIN
     Recette r ON ri.id_recette = r.id_recette
 JOIN 
     Ingredient i ON ri.id_ingredient = i.id_ingredient;
+
+CREATE OR REPLACE PACKAGE RECETTE_PKG AS
+  -- Fonction qui calcule la cote santé moyenne d'une recette
+  FUNCTION get_cote_sante(p_id_recette NUMBER) RETURN NUMBER;
+  
+  -- Fonction qui renvoie les ingrédients d'une recette sous forme de texte
+  FUNCTION get_ingredients_texte(p_id_recette NUMBER) RETURN VARCHAR2;
+  
+  -- Procédure qui affiche les détails complets d'une recette
+  PROCEDURE afficher_details(p_id_recette NUMBER);
+END RECETTE_PKG;
+/
+
+CREATE OR REPLACE PACKAGE BODY RECETTE_PKG AS
+  FUNCTION get_cote_sante(p_id_recette NUMBER) RETURN NUMBER IS
+    v_cote_moyenne NUMBER;
+  BEGIN
+    SELECT ROUND(AVG(i.cote_sante), 1)
+    INTO v_cote_moyenne
+    FROM Recette_Ingredient ri
+    JOIN Ingredient i ON ri.id_ingredient = i.id_ingredient
+    WHERE ri.id_recette = p_id_recette;
+    
+    RETURN v_cote_moyenne;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RETURN 0;
+    WHEN OTHERS THEN
+      RETURN 0;
+  END get_cote_sante;
+  
+  FUNCTION get_ingredients_texte(p_id_recette NUMBER) RETURN VARCHAR2 IS
+    v_ingredients VARCHAR2(1000) := '';
+    v_separator VARCHAR2(2) := '';
+  BEGIN
+    FOR ing IN (
+      SELECT i.nom, ri.quantite
+      FROM Recette_Ingredient ri
+      JOIN Ingredient i ON ri.id_ingredient = i.id_ingredient
+      WHERE ri.id_recette = p_id_recette
+      ORDER BY i.nom
+    ) LOOP
+      v_ingredients := v_ingredients || v_separator || ing.quantite || ' de ' || ing.nom;
+      v_separator := ', ';
+    END LOOP;
+    
+    RETURN v_ingredients;
+  EXCEPTION
+    WHEN OTHERS THEN
+      RETURN 'Erreur: impossible de récupérer les ingrédients';
+  END get_ingredients_texte;
+  
+  PROCEDURE afficher_details(p_id_recette NUMBER) IS
+    v_titre Recette.titre%TYPE;
+    v_description Recette.description%TYPE;
+    v_auteur Auteur.nom%TYPE;
+    v_temps_total NUMBER;
+    v_ingredients VARCHAR2(1000);
+    v_cote_sante NUMBER;
+  BEGIN
+    SELECT r.titre, r.description, a.nom, 
+           (NVL(r.temps_preparation, 0) + NVL(r.temps_cuisson, 0))
+    INTO v_titre, v_description, v_auteur, v_temps_total
+    FROM Recette r
+    JOIN Auteur a ON r.auteur_id = a.id_auteur
+    WHERE r.id_recette = p_id_recette;
+    
+    v_ingredients := get_ingredients_texte(p_id_recette);
+    v_cote_sante := get_cote_sante(p_id_recette);
+    
+    DBMS_OUTPUT.PUT_LINE('Recette: ' || v_titre);
+    DBMS_OUTPUT.PUT_LINE('Par: ' || v_auteur);
+    DBMS_OUTPUT.PUT_LINE('Description: ' || v_description);
+    DBMS_OUTPUT.PUT_LINE('Temps total: ' || v_temps_total || ' minutes');
+    DBMS_OUTPUT.PUT_LINE('Cote santé moyenne: ' || v_cote_sante || '/5');
+    DBMS_OUTPUT.PUT_LINE('Ingrédients: ' || v_ingredients);
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      DBMS_OUTPUT.PUT_LINE('Recette non trouvée !');
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Erreur: ' || SQLERRM);
+  END afficher_details;
+END RECETTE_PKG;
+/

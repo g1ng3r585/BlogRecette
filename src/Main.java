@@ -118,9 +118,10 @@ public class Main {
             System.out.println("6. Supprimer un auteur");
             System.out.println("7. Voir les auteurs");
             System.out.println("8. Voir les ingrédients");
-            System.out.println("9. Voir les recettes par temps de préparation"); // Nouvelle option
-            System.out.println("10. Voir les ingrédients d'une recette"); // Nouvelle option
-            System.out.println("11. Quitter"); // Modifié le numéro
+            System.out.println("9. Voir les recettes par temps de préparation"); 
+            System.out.println("10. Voir les ingrédients d'une recette"); 
+            System.out.println("11. Afficher la cote santé d'une recette"); 
+            System.out.println("12. Quitter");
             System.out.print("Votre choix : ");
             choix = sc.nextInt();
             sc.nextLine();
@@ -157,13 +158,16 @@ public class Main {
                     afficherIngredientsPourRecette(sc);
                     break;
                 case 11:
+                    afficherCoteSanteRecette(sc);
+                    break;
+                case 12:
                     System.out.println("Au revoir !");
                     break;
                 default:
                     System.out.println("Choix invalide !");
             }
             
-        } while (choix != 11);
+        } while (choix != 12);
 
         sc.close();
         DatabaseConnection.closeConnection();
@@ -947,6 +951,94 @@ private static void afficherIngredientsPourRecette(Scanner sc) {
         }
     } catch (SQLException e) {
         System.out.println("Erreur lors de l'affichage des ingrédients : " + e.getMessage());
+    } finally {
+        try {
+            if (rsRecettes != null) rsRecettes.close();
+            if (stmtRecettes != null) stmtRecettes.close();
+        } catch (SQLException e) {
+            System.out.println("Erreur lors de la fermeture des ressources : " + e.getMessage());
+        }
+    }
+}
+
+/**
+ * Affiche la cote santé d'une recette en utilisant le package SQL RECETTE_PKG.
+ * 
+ * @param sc Scanner pour lire les entrées utilisateur
+ */
+private static void afficherCoteSanteRecette(Scanner sc) {
+    System.out.println("\nRecettes disponibles :");
+    System.out.println("----------------------");
+    
+    Statement stmtRecettes = null;
+    ResultSet rsRecettes = null;
+    try {
+        Connection conn = DatabaseConnection.getConnection();
+        stmtRecettes = conn.createStatement();
+        rsRecettes = stmtRecettes.executeQuery("SELECT id_recette, titre FROM Recette");
+        
+        while (rsRecettes.next()) {
+            int id = rsRecettes.getInt("id_recette");
+            String titre = rsRecettes.getString("titre");
+            System.out.println(id + ". " + titre);
+        }
+        
+        System.out.println("----------------------\n");
+        System.out.print("Entrez l'ID de la recette : ");
+        
+        int idRecette;
+        try {
+            idRecette = Integer.parseInt(sc.nextLine());
+        } catch (NumberFormatException e) {
+            System.out.println("ID invalide. Opération annulée.");
+            return;
+        }
+        
+        CallableStatement cstmt = null;
+        ResultSet rs = null;
+        
+        try {
+            // Récupérer la cote santé
+            cstmt = conn.prepareCall("{? = call RECETTE_PKG.get_cote_sante(?)}");
+            cstmt.registerOutParameter(1, Types.NUMERIC);
+            cstmt.setInt(2, idRecette);
+            cstmt.execute();
+            double coteSante = cstmt.getDouble(1);
+            cstmt.close();
+            
+            // Récupérer le titre et la description
+            PreparedStatement pstmt = conn.prepareStatement(
+                "SELECT titre, description FROM Recette WHERE id_recette = ?");
+            pstmt.setInt(1, idRecette);
+            rs = pstmt.executeQuery();
+            
+            if (rs.next()) {
+                String titre = rs.getString("titre");
+                String description = rs.getString("description");
+                
+                // Récupérer la liste des ingrédients
+                cstmt = conn.prepareCall("{? = call RECETTE_PKG.get_ingredients_texte(?)}");
+                cstmt.registerOutParameter(1, Types.VARCHAR);
+                cstmt.setInt(2, idRecette);
+                cstmt.execute();
+                String ingredients = cstmt.getString(1);
+                
+                System.out.println("\nDétails nutritionnels :");
+                System.out.println("----------------------");
+                System.out.println("Recette: " + titre);
+                System.out.println("Description: " + description);
+                System.out.println("Cote santé moyenne: " + coteSante + "/5");
+                System.out.println("Ingrédients: " + ingredients);
+                System.out.println("----------------------");
+            } else {
+                System.out.println("Recette non trouvée !");
+            }
+        } finally {
+            if (rs != null) rs.close();
+            if (cstmt != null) cstmt.close();
+        }
+    } catch (SQLException e) {
+        System.out.println("Erreur lors de l'affichage de la cote santé : " + e.getMessage());
     } finally {
         try {
             if (rsRecettes != null) rsRecettes.close();
